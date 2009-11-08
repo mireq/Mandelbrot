@@ -29,7 +29,7 @@ class MandelbrotWorker
 {
 public:
 	MandelbrotWorker();
-	QImage render(bignum left, bignum top, bignum width, bignum height);
+	QImage render(bignum left, bignum top, bignum width, bignum height, const QRect &rect, const QSize &size);
 private:
 	enum { ColormapSize = 512 };
 	uint m_colormap[ColormapSize];
