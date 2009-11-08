@@ -22,18 +22,34 @@
 #define  MANDELBROTWORKER_H
 
 #include <QImage>
+#include <QThread>
 
 #include "UltraMath.h"
 
+class RenderThread;
+
+template <typename NumberT>
 class MandelbrotWorker
 {
 public:
-	MandelbrotWorker();
-	QImage render(bignum left, bignum top, bignum width, bignum height, const QRect &rect, const QSize &size);
+	MandelbrotWorker(RenderThread *callback);
+	QImage render(const QRect &rect);
+	void setRegion(NumberT left, NumberT top, NumberT width, NumberT height);
+	void setSize(const QSize &size);
 private:
 	enum { ColormapSize = 512 };
-	uint m_colormap[ColormapSize];
+	static uint m_colormap[];
+	static bool m_colormapInitialized;
+
+	NumberT m_left;
+	NumberT m_top;
+	NumberT m_width;
+	NumberT m_height;
+	QSize m_size;
+	RenderThread *m_callback;
 };
+
+#include "MandelbrotWorker.cpp"
 
 #endif   /* ----- #ifndef MANDELBROTWORKER_H  ----- */
 

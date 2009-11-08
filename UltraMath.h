@@ -19,8 +19,8 @@
 
 #include <gmpxx.h>
 
-//typedef mpf_class bignum;
-typedef float bignum;
+typedef mpf_class bignum;
+//typedef float bignum;
 
 #endif   /* ----- #ifndef ULTRAMATH_H  ----- */
 

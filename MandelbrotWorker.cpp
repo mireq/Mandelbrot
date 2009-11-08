@@ -15,44 +15,62 @@
  */
 
 #include "MandelbrotWorker.h"
+#include "RenderThread.h"
+
+#include <QDebug>
 
 
-MandelbrotWorker::MandelbrotWorker()
+template <typename NumberT>
+uint MandelbrotWorker<NumberT>::m_colormap[MandelbrotWorker::ColormapSize];
+template <typename NumberT>
+bool MandelbrotWorker<NumberT>::m_colormapInitialized = false;
+
+
+template <typename NumberT>
+MandelbrotWorker<NumberT>::MandelbrotWorker(RenderThread *callback)
 {
-	for (int i = 0; i < ColormapSize; ++i) {
-		int r = (512 - i) / 2;
-		int g = (i);
-		int b = i / 2;
-		if (g > 256) {
-			g -= g % 256;
+	if (!m_colormapInitialized) {
+		for (int i = 0; i < ColormapSize; ++i) {
+			int r = (512 - i) / 2;
+			int g = (i);
+			int b = i / 2;
+			if (g > 256) {
+				g -= g % 256;
+			}
+			m_colormap[i] = qRgb(r, g, b);
 		}
-		m_colormap[i] = qRgb(r, g, b);
+		m_colormapInitialized = true;
 	}
+	m_callback = callback;
 }
 
 
-QImage MandelbrotWorker::render(bignum left, bignum top, bignum width, bignum height, const QRect &rect, const QSize &size)
+template <typename NumberT>
+QImage MandelbrotWorker<NumberT>::render(const QRect &rect)
 {
-	bignum sizeDX = size.width();
-	bignum sizeDY = size.height();
+	NumberT sizeDX = m_size.width();
+	NumberT sizeDY = m_size.height();
 	QImage image(rect.size(), QImage::Format_RGB32);
 
-	for (int py = rect.y(); py < rect.bottom(); ++py) {
-		bignum y0 = (bignum(py) / sizeDY) * height + top;
-		for (int px = rect.x(); px < rect.right(); ++px) {
-			bignum x0 = (bignum(px) / sizeDX) * width + left;
-			bignum x = 0;
-			bignum y = 0;
+	for (int py = rect.y(); py <= rect.bottom(); ++py) {
+		NumberT y0 = (NumberT(py) / sizeDY) * m_height + m_top;
+		if (m_callback != NULL) {
+			m_callback->progressCallback();
+		}
+		for (int px = rect.x(); px <= rect.right(); ++px) {
+			NumberT x0 = (NumberT(px) / sizeDX) * m_width + m_left;
+			NumberT x = 0;
+			NumberT y = 0;
 		
 			int iteration = 0;
 			int maxIteration = 1024;
 
-			bignum pow2x = x*x;
-			bignum pow2y = y*y;
+			NumberT pow2x = x*x;
+			NumberT pow2y = y*y;
 		
-			while (pow2x + pow2y < bignum(4.0) && iteration < maxIteration) {
-				bignum xTemp = pow2x - pow2y + x0;
-				y = bignum(2)*x*y + y0;
+			while (pow2x + pow2y < NumberT(4.0) && iteration < maxIteration) {
+				NumberT xTemp = pow2x - pow2y + x0;
+				y = NumberT(2)*x*y + y0;
 				x = xTemp;
 				iteration++;
 				pow2x = x*x;
@@ -70,4 +88,22 @@ QImage MandelbrotWorker::render(bignum left, bignum top, bignum width, bignum he
 
 	return image;
 }
+
+
+template <typename NumberT>
+void MandelbrotWorker<NumberT>::setRegion(NumberT left, NumberT top, NumberT width, NumberT height)
+{
+	m_left   = left;
+	m_top    = top;
+	m_width  = width;
+	m_height = height;
+}
+
+
+template <typename NumberT>
+void MandelbrotWorker<NumberT>::setSize(const QSize &size)
+{
+	m_size = size;
+}
+
 

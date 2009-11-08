@@ -48,12 +48,13 @@ include_directories(
 
 set(mandelbrot_SRCS
 	main.cpp
-	MandelbrotWorker.cpp
 	MandelbrotWidget.cpp
+	RenderThread.cpp
 )
 
 set(mandelbrot_MOC_HDRS
 	MandelbrotWidget.h
+	RenderThread.h
 )
 
 qt4_wrap_cpp(mandelbrot_MOC_SRCS ${mandelbrot_MOC_HDRS})
