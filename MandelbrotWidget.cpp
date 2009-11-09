@@ -16,13 +16,19 @@
 
 #include "MandelbrotWidget.h"
 
-#include <QPainter>
+#include "RenderThread.h"
 
-#include <QDebug>
+#include <QPainter>
+#include <QTimer>
 
 MandelbrotWidget::MandelbrotWidget(QWidget *parent)
-	: QWidget(parent), m_img(0, 0, QImage::Format_RGB32)
+	: QWidget(parent),
+	m_img(0, 0, QImage::Format_RGB32),
+	m_running(false)
 {
+	m_updateTimer = new QTimer(this);
+	m_updateTimer->setSingleShot(true);
+	connect(m_updateTimer, SIGNAL(timeout()), SLOT(update()));
 	m_threadCount = 0;
 	m_threadProgress = NULL;
 	setMinimumSize(128, 128);
@@ -52,15 +58,29 @@ void MandelbrotWidget::setRegion(double left, double top, double width, double h
 
 void MandelbrotWidget::setRenderingSize(int width, int height)
 {
+	Q_ASSERT(width > 0);
+	Q_ASSERT(height > 0);
+
+	stopRendering();
 	m_img = QImage(width, height, QImage::Format_RGB32);
+	resize(width, height);
+	m_renderingSize = QSize(width, height);
 }
 
 
 void MandelbrotWidget::setThreadCount(int threadCount)
 {
+	Q_ASSERT(threadCount > 0);
+
 	stopRendering();
 	m_threadCount = threadCount;
-	initThreads();
+}
+
+
+void MandelbrotWidget::setSegmentSize(int width, int height)
+{
+	stopRendering();
+	m_segmentSize = QSize(width, height);
 }
 
 
@@ -71,22 +91,43 @@ void MandelbrotWidget::stopRendering()
 			m_threadProgress[i] = 0;
 		}
 	}
+	m_workunits.clear();
 	update();
+	m_running = false;
 }
 
 
 void MandelbrotWidget::startRendering()
 {
 	Q_ASSERT(m_threadCount > 0);
+	Q_ASSERT(m_segmentSize.isValid());
 	stopRendering();
+	m_running = true;
+	initThreads();
 
-	/*foreach (RenderThread *thread, m_renderThreads) {
-		thread->startRendering(QRect(0, 0, 256, 256));
-	}*/
-	m_renderThreads[0]->startRendering(QRect(0, 0, 512, 512));
-	m_renderThreads[1]->startRendering(QRect(512, 0, 512, 512));
-	m_renderThreads[2]->startRendering(QRect(0, 512, 512, 512));
-	m_renderThreads[3]->startRendering(QRect(512, 512, 512, 512));
+	int segmentsWidth = (m_renderingSize.width() + m_segmentSize.width() - 1) / m_segmentSize.width();
+	int segmentsHeight = (m_renderingSize.height() + m_segmentSize.height() - 1) / m_segmentSize.height();
+	m_segments = segmentsWidth * segmentsHeight;
+	m_segmentsRendered = 0;
+	for (int y = 0; y < segmentsHeight; ++y) {
+		for (int x = 0; x < segmentsWidth; ++x) {
+			int px = x * m_segmentSize.width();
+			int py = y * m_segmentSize.height();
+			int w = m_segmentSize.width();
+			int h = m_segmentSize.height();
+			if (px + w > m_renderingSize.width()) {
+				w = m_renderingSize.width() - px;
+			}
+			if (py + h > m_renderingSize.height()) {
+				h = m_renderingSize.height() - py;
+			}
+			m_workunits.append(QRect(px, py, w, h));
+		}
+	}
+
+	for (int thread = 0; thread < m_threadCount; ++thread) {
+		startNextWorkunit();
+	}
 }
 
 
@@ -106,7 +147,7 @@ void MandelbrotWidget::drawThreadBars(QPainter &painter)
 	QFontMetrics metrics = painter.fontMetrics();
 	int width = metrics.width(text) * 4;
 	int height = metrics.height() + 8;
-	int fullProg = 0;
+	long fullProg = 0;
 	for (int i = 0; i < m_threadCount; ++i) {
 		QString infoText = text + QString(" %1: %2%").arg(i + 1).arg(m_threadProgress[i] / 10);
 		QRect region = QRect(2, i * (height + 2) + 2, width, height);
@@ -114,7 +155,8 @@ void MandelbrotWidget::drawThreadBars(QPainter &painter)
 		fullProg += m_threadProgress[i];
 	}
 	QRect region = QRect(5, this->height() - height - 5, this->width() - 10, height);
-	drawProgressBar(region, fullProg / 4, "Overall Progress", painter);
+	int progress = int((long(ProgressSteps) * long(m_segmentsRendered) + long(fullProg)) / long(m_segments));
+	drawProgressBar(region, progress, "Overall Progress", painter);
 }
 
 
@@ -125,7 +167,7 @@ void MandelbrotWidget::drawProgressBar(const QRect &rect, int progress, const QS
 	static const QBrush progressAct = QColor(255, 128, 0);
 
 	QRect progressReg = QRect(rect.left() + 5, rect.bottom() - 8, rect.width() - 10, 5);
-	QSize progressSize(progressReg.width() * progress / 1000, 5);
+	QSize progressSize(progressReg.width() * progress / ProgressSteps, 5);
 
 	painter.setPen(Qt::NoPen);
 	painter.setBrush(progressBox);
@@ -147,37 +189,68 @@ void MandelbrotWidget::initThreads()
 	}
 
 	foreach (RenderThread *thread, m_renderThreads) {
+		if (thread->isRunning()) {
+			thread->stop();
+			thread->wait();
+		}
 		delete thread;
 	}
 	m_renderThreads.clear();
+	m_freeThreads.clear();
+	m_segments = 0;
+	m_segmentsRendered = 0;
 
 	m_threadProgress = new int[m_threadCount];
 	for (int i = 0; i < m_threadCount; ++i) {
-		RenderThread *thread = new RenderThread(i, m_left, m_top, m_width, m_height, m_img.size());
-		connect(thread, SIGNAL(imageRendered(const QImage &, const QPoint &)), SLOT(drawImage(const QImage &, const QPoint &)));
+		RenderThread *thread = new RenderThread(i, m_left, m_top, m_width, m_height, m_renderingSize);
+		connect(thread, SIGNAL(imageRendered(int, const QImage &, const QPoint &)), SLOT(imageRendered(int, const QImage &, const QPoint &)));
 		connect(thread, SIGNAL(progressChanged(int, int, int)), SLOT(updateThreadProgress(int, int, int)));
+		//connect(thread, SIGNAL(finished()), SLOT(startNextThread()));
 		m_renderThreads.append(thread);
+		m_freeThreads.append(i);
+		m_threadProgress[i] = 0;
+		thread->start();
 	}
 }
 
 
 void MandelbrotWidget::updateThreadProgress(int id, int value, int maxValue)
 {
-	m_threadProgress[id] = value * 1000 / maxValue;
-	update();
+	m_threadProgress[id] = value * ProgressSteps / maxValue;
+	if (!m_updateTimer->isActive()) {
+		m_updateTimer->start(100);
+	}
 }
 
 
-void MandelbrotWidget::drawImage(const QImage &image, const QPoint &point)
+void MandelbrotWidget::startNextWorkunit()
+{
+	if (m_workunits.empty()) {
+		if (m_segmentsRendered == m_segments) {
+			m_running = false;
+		}
+		return;
+	}
+	if (m_freeThreads.empty()) {
+		return;
+	}
+	int threadId = m_freeThreads.takeFirst();
+	m_renderThreads[threadId]->startRendering(m_workunits.takeFirst());
+}
+
+
+void MandelbrotWidget::imageRendered(int id, const QImage &image, const QPoint &point)
 {
 	QPainter painter(&m_img);
-	qDebug() << image.size();
-	QImage ni(256, 256, QImage::Format_ARGB32);
-	QPainter ptr(&ni);
-	ptr.fillRect(0, 0, 256, 256, Qt::white);
-	ptr.end();
-	painter.drawImage(point, ni);
 	painter.drawImage(point, image);
 	update();
+
+	m_freeThreads.append(id);
+	m_segmentsRendered++;
+	m_threadProgress[id] = 0;
+	if (m_workunits.empty()) {
+		m_renderThreads[id]->stop();
+	}
+	startNextWorkunit();
 }
 

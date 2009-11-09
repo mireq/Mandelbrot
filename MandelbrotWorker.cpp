@@ -17,8 +17,6 @@
 #include "MandelbrotWorker.h"
 #include "RenderThread.h"
 
-#include <QDebug>
-
 
 template <typename NumberT>
 uint MandelbrotWorker<NumberT>::m_colormap[MandelbrotWorker::ColormapSize];
@@ -29,6 +27,7 @@ bool MandelbrotWorker<NumberT>::m_colormapInitialized = false;
 template <typename NumberT>
 MandelbrotWorker<NumberT>::MandelbrotWorker(RenderThread *callback)
 {
+	// Inicializácia farebnej mapy
 	if (!m_colormapInitialized) {
 		for (int i = 0; i < ColormapSize; ++i) {
 			int r = (512 - i) / 2;
@@ -41,29 +40,40 @@ MandelbrotWorker<NumberT>::MandelbrotWorker(RenderThread *callback)
 		}
 		m_colormapInitialized = true;
 	}
+
 	m_callback = callback;
 }
 
 
 template <typename NumberT>
-QImage MandelbrotWorker<NumberT>::render(const QRect &rect)
+QImage MandelbrotWorker<NumberT>::render(const QRect &rect, bool &stop)
 {
 	NumberT sizeDX = m_size.width();
 	NumberT sizeDY = m_size.height();
+
 	QImage image(rect.size(), QImage::Format_RGB32);
 
 	for (int py = rect.y(); py <= rect.bottom(); ++py) {
-		NumberT y0 = (NumberT(py) / sizeDY) * m_height + m_top;
+		// Zastavenie výpočtu pri požiadavke užívateľa
+		if (stop) {
+			return image;
+		}
+
+		// Signalizujeme výpočeť ďalšieho riadku
 		if (m_callback != NULL) {
 			m_callback->progressCallback();
 		}
+
+		// Prepočet z pixelov na mierku množiny
+		NumberT y0 = (NumberT(py) / sizeDY) * m_height + m_top;
 		for (int px = rect.x(); px <= rect.right(); ++px) {
 			NumberT x0 = (NumberT(px) / sizeDX) * m_width + m_left;
+
 			NumberT x = 0;
 			NumberT y = 0;
 		
 			int iteration = 0;
-			int maxIteration = 1024;
+			int maxIteration = MaxIterations;
 
 			NumberT pow2x = x*x;
 			NumberT pow2y = y*y;

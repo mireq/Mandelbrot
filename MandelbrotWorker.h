@@ -24,7 +24,6 @@
 #include <QImage>
 #include <QThread>
 
-#include "UltraMath.h"
 
 class RenderThread;
 
@@ -33,11 +32,12 @@ class MandelbrotWorker
 {
 public:
 	MandelbrotWorker(RenderThread *callback);
-	QImage render(const QRect &rect);
+	QImage render(const QRect &rect, bool &stop);
 	void setRegion(NumberT left, NumberT top, NumberT width, NumberT height);
 	void setSize(const QSize &size);
 private:
 	enum { ColormapSize = 512 };
+	enum { MaxIterations = 1024 };
 	static uint m_colormap[];
 	static bool m_colormapInitialized;
 
@@ -49,6 +49,7 @@ private:
 	RenderThread *m_callback;
 };
 
+// Šablóna - je nutná implementácia
 #include "MandelbrotWorker.cpp"
 
 #endif   /* ----- #ifndef MANDELBROTWORKER_H  ----- */

@@ -18,8 +18,8 @@
 #define  RENDERTHREAD_H
 
 #include <QThread>
-#include <QRect>
 #include <QImage>
+#include <QSemaphore>
 
 #include "UltraMath.h"
 
@@ -31,13 +31,13 @@ Q_OBJECT
 public:
 	RenderThread(int id, double left, double top, double width, double height, const QSize &size);
 	~RenderThread();
-	void startRendering(const QRect &region, Priority priority = InheritPriority);
+	void startRendering(const QRect &region);
+	void stop();
 signals:
-	void imageRendered(const QImage &image, const QPoint &region);
+	void imageRendered(int id, const QImage &image, const QPoint &region);
 	void progressChanged(int id, int value, int maxValue);
 protected:
 	virtual void run();
-	virtual void start(Priority priority = InheritPriority);
 private:
 	void progressCallback();
 	MandelbrotWorker<double> *m_doubleWorker;
@@ -49,9 +49,11 @@ private:
 	double m_height;
 	QSize m_size;
 	QRect m_renderRegion;
+	QSemaphore m_renderLock;
 
-	int m_maxRownum;
 	int m_rownum;
+	int m_maxRownum;
+	bool m_stop;
 
 	template<typename NumberT>
 	friend class MandelbrotWorker;
