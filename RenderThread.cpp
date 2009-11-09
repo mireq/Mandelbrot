@@ -20,8 +20,10 @@
 #include <QImage>
 #include <QPixmap>
 
-RenderThread::RenderThread(int id, double left, double top, double width, double height, const QSize &size)
+RenderThread::RenderThread(int id, double left, double top, double width, double height, const QSize &size, WorkerType type)
 	: QThread(),
+	m_doubleWorker(NULL),
+	m_bignumWorker(NULL),
 	m_id(id),
 	m_left(left),
 	m_top(top),
@@ -33,20 +35,35 @@ RenderThread::RenderThread(int id, double left, double top, double width, double
 	m_maxRownum(0),
 	m_stop(false)
 {
-	m_doubleWorker = new MandelbrotWorker<double>(this);
-	m_doubleWorker->setRegion(left, top, width, height);
-	m_doubleWorker->setSize(size);
+	if (type == Double) {
+		m_doubleWorker = new MandelbrotWorker<double>(this);
+		m_doubleWorker->setRegion(left, top, width, height);
+		m_doubleWorker->setSize(size);
+	}
+	else {
+		m_bignumWorker = new MandelbrotWorker<bignum>(this);
+		m_bignumWorker->setRegion(left, top, width, height);
+		m_bignumWorker->setSize(size);
+	}
 }
 
 
 RenderThread::~RenderThread()
 {
-	delete m_doubleWorker;
+	if (m_doubleWorker != NULL) {
+		delete m_doubleWorker;
+		m_doubleWorker = NULL;
+	}
+	else {
+		delete m_bignumWorker;
+		m_bignumWorker = NULL;
+	}
 }
 
 
 void RenderThread::startRendering(const QRect &region)
 {
+	m_threadFree.lock();
 	m_renderRegion = region;
 	m_maxRownum = region.height();
 	m_renderLock.release();
@@ -68,11 +85,20 @@ void RenderThread::run()
 		// Čakanie na dáta
 		m_renderLock.acquire();
 		if (!m_renderRegion.isValid()) {
+			m_threadFree.unlock();
 			return;
 		}
 		m_rownum = 0;
-		QImage img = m_doubleWorker->render(m_renderRegion, m_stop);
+		QImage img;
+		//QImage img = m_doubleWorker->render(m_renderRegion, m_stop);
+		if (m_doubleWorker != NULL) {
+			img = m_doubleWorker->render(m_renderRegion, m_stop);
+		}
+		else {
+			img = m_bignumWorker->render(m_renderRegion, m_stop);
+		}
 		emit imageRendered(m_id, img, m_renderRegion.topLeft());
+		m_threadFree.unlock();
 	}
 }
 

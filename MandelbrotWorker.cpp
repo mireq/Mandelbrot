@@ -14,7 +14,6 @@
  * =====================================================================================
  */
 
-#include "MandelbrotWorker.h"
 #include "RenderThread.h"
 
 
@@ -50,6 +49,7 @@ QImage MandelbrotWorker<NumberT>::render(const QRect &rect, bool &stop)
 {
 	NumberT sizeDX = m_size.width();
 	NumberT sizeDY = m_size.height();
+
 
 	QImage image(rect.size(), QImage::Format_RGB32);
 

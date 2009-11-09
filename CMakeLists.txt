@@ -48,23 +48,31 @@ include_directories(
 
 set(mandelbrot_SRCS
 	main.cpp
+	MainWindow.cpp
 	MandelbrotWidget.cpp
 	RenderThread.cpp
+	SettingsWidget.cpp
 )
 
 set(mandelbrot_MOC_HDRS
+	MainWindow.h
 	MandelbrotWidget.h
 	RenderThread.h
+	SettingsWidget.h
 )
+
+set(mandelbrot_TRANS
+	locale/mandelbrot_sk_SK.ts)
 
 qt4_wrap_cpp(mandelbrot_MOC_SRCS ${mandelbrot_MOC_HDRS})
 #qt4_wrap_ui(mandelbrot_UIS_SRCS ${mandelbrot_UIS})
 #qt4_add_resources(mandelbrot_QRC_SRCS ${mandelbrot_QRC})
-#qt4_add_translation(lrelease_outputs ${mandelbrot_TRANS})
+qt4_add_translation(lrelease_outputs ${mandelbrot_TRANS})
 
 add_executable(mandelbrot
 	${mandelbrot_SRCS}
 	${mandelbrot_MOC_SRCS}
+	${lrelease_outputs}
 )
 
 target_link_libraries(mandelbrot ${QT_LIBRARIES} ${GMP_LIBRARY})

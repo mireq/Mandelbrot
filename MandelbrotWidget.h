@@ -2,6 +2,11 @@
  * =====================================================================================
  *
  *       Filename:  MandelbrotWidget.h
+ *     __  ___             __    ____            __ _      ___    __         __
+ *    /  |/  /__ ____  ___/ /__ / / /  _______  / /| | /| / (_)__/ /__ ____ / /_
+ *   / /|_/ / _ `/ _ \/ _  / -_) / _ \/ __/ _ \/ __/ |/ |/ / / _  / _ `/ -_) __/
+ *  /_/  /_/\_,_/_//_/\_,_/\__/_/_.__/_/  \___/\__/|__/|__/_/\_,_/\_, /\__/\__/
+ *                                                               /___/
  *
  *        Version:  1.0
  *        Created:  07.11.2009 23:37:59
@@ -34,8 +39,12 @@ public:
 	void setRenderingSize(int width, int height);
 	void setThreadCount(int threadCount);
 	void setSegmentSize(int width, int height);
+	void setGmp(bool useGmp);
 	void stopRendering();
 	void startRendering();
+signals:
+	void renderingStarted();
+	void renderingStopped();
 protected:
 	virtual void paintEvent(QPaintEvent *event);
 private:
@@ -55,6 +64,7 @@ private:
 	QImage m_img;
 	QSize m_renderingSize;
 	QSize m_segmentSize;
+	bool m_useGmp;
 	QTimer *m_updateTimer;
 
 	QVector<RenderThread *> m_renderThreads;

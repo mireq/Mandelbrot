@@ -23,7 +23,9 @@
 
 MandelbrotWidget::MandelbrotWidget(QWidget *parent)
 	: QWidget(parent),
+	m_segmentsRendered(-1),
 	m_img(0, 0, QImage::Format_RGB32),
+	m_useGmp(false),
 	m_running(false)
 {
 	m_updateTimer = new QTimer(this);
@@ -31,7 +33,7 @@ MandelbrotWidget::MandelbrotWidget(QWidget *parent)
 	connect(m_updateTimer, SIGNAL(timeout()), SLOT(update()));
 	m_threadCount = 0;
 	m_threadProgress = NULL;
-	setMinimumSize(128, 128);
+	setMinimumSize(480, 480);
 }
 
 
@@ -63,8 +65,8 @@ void MandelbrotWidget::setRenderingSize(int width, int height)
 
 	stopRendering();
 	m_img = QImage(width, height, QImage::Format_RGB32);
-	resize(width, height);
 	m_renderingSize = QSize(width, height);
+	setMinimumSize(width, height);
 }
 
 
@@ -74,6 +76,7 @@ void MandelbrotWidget::setThreadCount(int threadCount)
 
 	stopRendering();
 	m_threadCount = threadCount;
+	initThreads();
 }
 
 
@@ -84,16 +87,34 @@ void MandelbrotWidget::setSegmentSize(int width, int height)
 }
 
 
+void MandelbrotWidget::setGmp(bool useGmp)
+{
+	stopRendering();
+	m_useGmp = useGmp;
+}
+
+
 void MandelbrotWidget::stopRendering()
 {
+	foreach (RenderThread *thread, m_renderThreads) {
+		if (thread->isRunning()) {
+			thread->stop();
+			thread->wait();
+		}
+	}
 	if (m_threadProgress != NULL) {
 		for (int i = 0; i < m_threadCount; ++i) {
-			m_threadProgress[i] = 0;
+			m_threadProgress[i] = -1;
 		}
 	}
 	m_workunits.clear();
+	m_segmentsRendered = -1;
+	m_segments = 0;
+	if (m_running) {
+		m_running = false;
+		emit renderingStopped();
+	}
 	update();
-	m_running = false;
 }
 
 
@@ -102,7 +123,16 @@ void MandelbrotWidget::startRendering()
 	Q_ASSERT(m_threadCount > 0);
 	Q_ASSERT(m_segmentSize.isValid());
 	stopRendering();
-	m_running = true;
+	if (!m_running) {
+		m_running = true;
+		emit renderingStarted();
+	}
+
+	// Vyčistenie plochy
+	QPainter painter(&m_img);
+	painter.setBrush(Qt::black);
+	painter.drawRect(0, 0, m_img.width(), m_img.height());
+
 	initThreads();
 
 	int segmentsWidth = (m_renderingSize.width() + m_segmentSize.width() - 1) / m_segmentSize.width();
@@ -143,20 +173,30 @@ void MandelbrotWidget::paintEvent(QPaintEvent * /*event*/)
 
 void MandelbrotWidget::drawThreadBars(QPainter &painter)
 {
-	QString text = "Thread";
+	QString text = tr("Thread");
 	QFontMetrics metrics = painter.fontMetrics();
 	int width = metrics.width(text) * 4;
 	int height = metrics.height() + 8;
 	long fullProg = 0;
 	for (int i = 0; i < m_threadCount; ++i) {
+		if (m_threadProgress[i] < 0) {
+			continue;
+		}
 		QString infoText = text + QString(" %1: %2%").arg(i + 1).arg(m_threadProgress[i] / 10);
 		QRect region = QRect(2, i * (height + 2) + 2, width, height);
 		drawProgressBar(region, m_threadProgress[i], infoText, painter);
 		fullProg += m_threadProgress[i];
 	}
+
+	if (m_segmentsRendered < 0 || m_segments == 0) {
+		return;
+	}
 	QRect region = QRect(5, this->height() - height - 5, this->width() - 10, height);
-	int progress = int((long(ProgressSteps) * long(m_segmentsRendered) + long(fullProg)) / long(m_segments));
-	drawProgressBar(region, progress, "Overall Progress", painter);
+	int progress = 0;
+	if (m_segments > 0) {
+		progress = int((long(ProgressSteps) * long(m_segmentsRendered) + long(fullProg)) / long(m_segments));
+	}
+	drawProgressBar(region, progress, tr("Overall Progress"), painter);
 }
 
 
@@ -202,13 +242,18 @@ void MandelbrotWidget::initThreads()
 
 	m_threadProgress = new int[m_threadCount];
 	for (int i = 0; i < m_threadCount; ++i) {
-		RenderThread *thread = new RenderThread(i, m_left, m_top, m_width, m_height, m_renderingSize);
+		RenderThread *thread;
+		if (m_useGmp) {
+			thread = new RenderThread(i, m_left, m_top, m_width, m_height, m_renderingSize, RenderThread::Bignum);
+		}
+		else {
+			thread = new RenderThread(i, m_left, m_top, m_width, m_height, m_renderingSize, RenderThread::Double);
+		}
 		connect(thread, SIGNAL(imageRendered(int, const QImage &, const QPoint &)), SLOT(imageRendered(int, const QImage &, const QPoint &)));
 		connect(thread, SIGNAL(progressChanged(int, int, int)), SLOT(updateThreadProgress(int, int, int)));
-		//connect(thread, SIGNAL(finished()), SLOT(startNextThread()));
 		m_renderThreads.append(thread);
 		m_freeThreads.append(i);
-		m_threadProgress[i] = 0;
+		m_threadProgress[i] = -1;
 		thread->start();
 	}
 }
@@ -227,7 +272,11 @@ void MandelbrotWidget::startNextWorkunit()
 {
 	if (m_workunits.empty()) {
 		if (m_segmentsRendered == m_segments) {
-			m_running = false;
+			if (m_running) {
+				m_running = false;
+				m_segmentsRendered = -1;
+				emit renderingStopped();
+			}
 		}
 		return;
 	}
@@ -247,9 +296,12 @@ void MandelbrotWidget::imageRendered(int id, const QImage &image, const QPoint &
 
 	m_freeThreads.append(id);
 	m_segmentsRendered++;
-	m_threadProgress[id] = 0;
 	if (m_workunits.empty()) {
 		m_renderThreads[id]->stop();
+		m_threadProgress[id] = -1;
+	}
+	else {
+		m_threadProgress[id] = 0;
 	}
 	startNextWorkunit();
 }
