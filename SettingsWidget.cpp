@@ -54,9 +54,11 @@ SettingsWidget::SettingsWidget(MandelbrotWidget *mandelbrot, QWidget *parent)
 	QGroupBox *areaGroupBox = new QGroupBox(tr("Area"));
 	QGroupBox *outputGroupBox = new QGroupBox(tr("Output settings"));
 	QGroupBox *threadsGroupBox = new QGroupBox(tr("Threads"));
+	QGroupBox *iterationsGroupBox = new QGroupBox(tr("Iterations"));
 	layout->addWidget(areaGroupBox);
 	layout->addWidget(outputGroupBox);
 	layout->addWidget(threadsGroupBox);
+	layout->addWidget(iterationsGroupBox);
 
 	m_leftSpinBox = new QDoubleSpinBox;
 	m_leftSpinBox->setDecimals(SpinBoxDecimals);
@@ -109,6 +111,14 @@ SettingsWidget::SettingsWidget(MandelbrotWidget *mandelbrot, QWidget *parent)
 	threadsLayout->addRow(tr("&Number of threads"), m_threadSpinBox);
 	threadsLayout->addRow(tr("&Segment width"), m_segmentWidthSpinBox);
 	threadsLayout->addRow(tr("Se&gment height"), m_segmentHeightSpinBox);
+
+	m_iterationsSpinBox = new QSpinBox;
+	m_iterationsSpinBox->setRange(1, 8192);
+	m_iterationsSpinBox->setValue(1000);
+
+	QFormLayout *iterationsLayout = new QFormLayout;
+	iterationsGroupBox->setLayout(iterationsLayout);
+	iterationsLayout->addRow(tr("&Max iterations"), m_iterationsSpinBox);
 
 	m_useGmp = new QPushButton(tr("&Use GMP"));
 	m_useGmp->setCheckable(true);
@@ -173,6 +183,7 @@ void SettingsWidget::start()
 	m_mandelbrot->setRenderingSize(m_renderWidthSpinBox->value(), m_renderHeightSpinBox->value());
 	m_mandelbrot->setThreadCount(m_threadSpinBox->value());
 	m_mandelbrot->setSegmentSize(m_segmentWidthSpinBox->value(), m_segmentHeightSpinBox->value());
+	m_mandelbrot->setMaxIterations(m_iterationsSpinBox->value());
 	m_mandelbrot->setGmp(m_useGmp->isChecked());
 
 	m_startBtn->setEnabled(false);

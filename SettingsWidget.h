@@ -65,6 +65,7 @@ private:
 	QSpinBox *m_threadSpinBox;
 	QSpinBox *m_segmentWidthSpinBox;
 	QSpinBox *m_segmentHeightSpinBox;
+	QSpinBox *m_iterationsSpinBox;
 	QPushButton *m_useGmp;
 
 	static const double m_defaultLeft;

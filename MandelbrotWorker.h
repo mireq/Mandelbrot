@@ -35,11 +35,12 @@ public:
 	QImage render(const QRect &rect, bool &stop);
 	void setRegion(NumberT left, NumberT top, NumberT width, NumberT height);
 	void setSize(const QSize &size);
+	void setMaxIterations(int iterations);
 private:
 	enum { ColormapSize = 512 };
-	enum { MaxIterations = 1024 };
 	static uint m_colormap[];
 	static bool m_colormapInitialized;
+	int m_maxIterations;
 
 	NumberT m_left;
 	NumberT m_top;

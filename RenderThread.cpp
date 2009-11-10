@@ -20,7 +20,7 @@
 #include <QImage>
 #include <QPixmap>
 
-RenderThread::RenderThread(int id, double left, double top, double width, double height, const QSize &size, WorkerType type)
+RenderThread::RenderThread(int id, double left, double top, double width, double height, const QSize &size, int maxIterations, WorkerType type)
 	: QThread(),
 	m_doubleWorker(NULL),
 	m_bignumWorker(NULL),
@@ -31,6 +31,7 @@ RenderThread::RenderThread(int id, double left, double top, double width, double
 	m_height(height),
 	m_size(size),
 	m_renderLock(0),
+	m_maxIterations(maxIterations),
 	m_rownum(0),
 	m_maxRownum(0),
 	m_stop(false)
@@ -39,11 +40,13 @@ RenderThread::RenderThread(int id, double left, double top, double width, double
 		m_doubleWorker = new MandelbrotWorker<double>(this);
 		m_doubleWorker->setRegion(left, top, width, height);
 		m_doubleWorker->setSize(size);
+		m_doubleWorker->setMaxIterations(m_maxIterations);
 	}
 	else {
 		m_bignumWorker = new MandelbrotWorker<bignum>(this);
 		m_bignumWorker->setRegion(left, top, width, height);
 		m_bignumWorker->setSize(size);
+		m_bignumWorker->setMaxIterations(m_maxIterations);
 	}
 }
 

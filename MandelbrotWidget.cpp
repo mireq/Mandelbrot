@@ -87,6 +87,13 @@ void MandelbrotWidget::setSegmentSize(int width, int height)
 }
 
 
+void MandelbrotWidget::setMaxIterations(int iterations)
+{
+	Q_ASSERT(iterations > 0);
+	m_maxIterations = iterations;
+}
+
+
 void MandelbrotWidget::setGmp(bool useGmp)
 {
 	stopRendering();
@@ -244,10 +251,10 @@ void MandelbrotWidget::initThreads()
 	for (int i = 0; i < m_threadCount; ++i) {
 		RenderThread *thread;
 		if (m_useGmp) {
-			thread = new RenderThread(i, m_left, m_top, m_width, m_height, m_renderingSize, RenderThread::Bignum);
+			thread = new RenderThread(i, m_left, m_top, m_width, m_height, m_renderingSize, m_maxIterations, RenderThread::Bignum);
 		}
 		else {
-			thread = new RenderThread(i, m_left, m_top, m_width, m_height, m_renderingSize, RenderThread::Double);
+			thread = new RenderThread(i, m_left, m_top, m_width, m_height, m_renderingSize, m_maxIterations, RenderThread::Double);
 		}
 		connect(thread, SIGNAL(imageRendered(int, const QImage &, const QPoint &)), SLOT(imageRendered(int, const QImage &, const QPoint &)));
 		connect(thread, SIGNAL(progressChanged(int, int, int)), SLOT(updateThreadProgress(int, int, int)));

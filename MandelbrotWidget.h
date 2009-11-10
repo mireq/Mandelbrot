@@ -39,6 +39,7 @@ public:
 	void setRenderingSize(int width, int height);
 	void setThreadCount(int threadCount);
 	void setSegmentSize(int width, int height);
+	void setMaxIterations(int iterations);
 	void setGmp(bool useGmp);
 	void stopRendering();
 	void startRendering();
@@ -64,6 +65,7 @@ private:
 	QImage m_img;
 	QSize m_renderingSize;
 	QSize m_segmentSize;
+	int m_maxIterations;
 	bool m_useGmp;
 	QTimer *m_updateTimer;
 

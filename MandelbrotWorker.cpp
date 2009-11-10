@@ -25,15 +25,42 @@ bool MandelbrotWorker<NumberT>::m_colormapInitialized = false;
 
 template <typename NumberT>
 MandelbrotWorker<NumberT>::MandelbrotWorker(RenderThread *callback)
+	: m_maxIterations(1024)
 {
 	// Inicializácia farebnej mapy
 	if (!m_colormapInitialized) {
 		for (int i = 0; i < ColormapSize; ++i) {
-			int r = (512 - i) / 2;
+			/*int r = (512 - i) / 2;
 			int g = (i);
 			int b = i / 2;
 			if (g > 256) {
 				g -= g % 256;
+			}
+			*/
+			int r = (i - ColormapSize / 2 + 192);
+			int g = i * 1.5;
+			int b = (ColormapSize / 2 - i * 2);
+			if (r < 0) {
+				r = 0;
+			}
+			if (r > 255) {
+				r = r - (r % 255) * 2;
+			}
+			if (g > 255) {
+				if (g < 384) {
+					g = (255 - g) * 2;
+				}
+				else {
+					g = 0;
+				}
+			}
+			if (b < 0) {
+				if (b < -512) {
+					b = -b - 512;
+				}
+				else {
+					b = 0;
+				}
 			}
 			m_colormap[i] = qRgb(r, g, b);
 		}
@@ -73,12 +100,11 @@ QImage MandelbrotWorker<NumberT>::render(const QRect &rect, bool &stop)
 			NumberT y = 0;
 		
 			int iteration = 0;
-			int maxIteration = MaxIterations;
 
 			NumberT pow2x = x*x;
 			NumberT pow2y = y*y;
 		
-			while (pow2x + pow2y < NumberT(4.0) && iteration < maxIteration) {
+			while (pow2x + pow2y < NumberT(4.0) && iteration < m_maxIterations) {
 				NumberT xTemp = pow2x - pow2y + x0;
 				y = NumberT(2)*x*y + y0;
 				x = xTemp;
@@ -87,11 +113,11 @@ QImage MandelbrotWorker<NumberT>::render(const QRect &rect, bool &stop)
 				pow2y = y*y;
 			}
 		
-			if (iteration == maxIteration) {
+			if (iteration == m_maxIterations) {
 				image.setPixel(px - rect.x(), py - rect.y(), 0x00000000);
 			}
 			else {
-				image.setPixel(px - rect.x(), py - rect.y(), m_colormap[iteration / 2]);
+				image.setPixel(px - rect.x(), py - rect.y(), m_colormap[ColormapSize * iteration / m_maxIterations]);
 			}
 		}
 	}
@@ -116,4 +142,10 @@ void MandelbrotWorker<NumberT>::setSize(const QSize &size)
 	m_size = size;
 }
 
+
+template <typename NumberT>
+void MandelbrotWorker<NumberT>::setMaxIterations(int iterations)
+{
+	m_maxIterations = iterations;
+}
 

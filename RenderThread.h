@@ -38,7 +38,7 @@ public:
 		Double = 0,
 		Bignum = 1
 	};
-	RenderThread(int id, double left, double top, double width, double height, const QSize &size, WorkerType type);
+	RenderThread(int id, double left, double top, double width, double height, const QSize &size, int maxIterations, WorkerType type);
 	~RenderThread();
 	void startRendering(const QRect &region);
 	void stop();
@@ -61,6 +61,7 @@ private:
 	QRect m_renderRegion;
 	QSemaphore m_renderLock;
 	QMutex m_threadFree;
+	int m_maxIterations;
 
 	int m_rownum;
 	int m_maxRownum;
